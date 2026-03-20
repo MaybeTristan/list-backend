@@ -763,9 +763,14 @@ JUST ANSWER THE QUESTIONS IN A CLEAN ORGANIZED FORMAT. DO NOT ADD ANY OTHER FLUF
         });
 
         const data = await res.json();
-        const text = data?.content?.[0]?.text || '';
+        console.log('Claude response:', JSON.stringify(data));
 
-        if (!text) throw new Error('Empty response');
+        // Check for API errors
+        if (data.error) throw new Error('API error: ' + data.error.message);
+        if (data.type === 'error') throw new Error('API error: ' + (data.error?.message || JSON.stringify(data)));
+
+        const text = data?.content?.[0]?.text || '';
+        if (!text) throw new Error('Empty response — full data: ' + JSON.stringify(data));
 
         // Parse the response
         const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
