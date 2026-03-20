@@ -319,6 +319,39 @@
     #aiStatus.success { background: #eafaf1; color: #1e8449; border: 1px solid #a9dfbf; }
     #aiStatus.error   { background: var(--yellow-bg); color: #7d6608; border: 1px solid var(--yellow-border); }
 
+    /* ── Profile avatar ──────────────────────────────────────────────────── */
+    .profile-wrap { position: relative; }
+    .profile-avatar {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: var(--red); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1em; cursor: pointer; flex-shrink: 0;
+      border: 2px solid transparent;
+      transition: border-color 0.15s, transform 0.15s;
+      user-select: none; font-family: 'Lexend', sans-serif;
+      font-weight: 600; letter-spacing: 0;
+    }
+    .profile-avatar:hover { border-color: var(--red); transform: scale(1.06); }
+    .profile-dropdown {
+      position: absolute; top: 44px; right: 0;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 16px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.14);
+      min-width: 180px; z-index: 500;
+      animation: cardIn 0.2s ease both;
+      display: none;
+    }
+    .profile-dropdown.open { display: block; }
+    .profile-dropdown-name { font-size: 0.9em; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+    .profile-dropdown-label { font-size: 0.72em; color: var(--faint); margin-bottom: 12px; }
+    .profile-logout-btn {
+      width: 100%; padding: 7px; font-family: 'Lexend', sans-serif;
+      font-size: 0.8em; background: none; border: 1px solid var(--border);
+      border-radius: 7px; color: var(--muted); cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .profile-logout-btn:hover { background: #c0392b; color: #fff; border-color: #c0392b; }
+
     @media (max-width: 500px) {
       body { padding: 16px 12px; }
       .field-row { flex-direction: column; }
@@ -331,19 +364,80 @@
 </head>
 <body>
 
-  <!-- PIN Gate -->
-  <div id="pinGate" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;min-height:100vh;min-height:100dvh;">
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:36px 40px;max-width:360px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.15);text-align:center;border-top:4px solid var(--red);">
-      <div style="font-size:2.4em;margin-bottom:12px;">🔐</div>
-      <h2 style="font-family:'Merriweather',serif;font-size:1.2em;margin-bottom:8px;color:var(--text);">Admin Access</h2>
-      <p style="font-size:0.85em;color:var(--muted);margin-bottom:20px;">Enter your PIN to access the item editor.</p>
-      <input id="pinInput" type="password" maxlength="4" placeholder="• • • •"
-        style="width:100%;padding:11px 14px;font-family:'Lexend',sans-serif;font-size:1.2em;letter-spacing:0.4em;text-align:center;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);margin-bottom:12px;transition:border-color 0.2s;outline:none;" />
-      <div id="pinError" style="font-size:0.78em;color:#c0392b;min-height:18px;margin-bottom:10px;"></div>
-      <button id="pinSubmit"
-        style="width:100%;padding:11px;font-family:'Lexend',sans-serif;font-size:0.9em;background:var(--red);color:#fff;border:none;border-radius:8px;cursor:pointer;">
-        Unlock
+  <!-- Login Gate -->
+  <div id="loginGate" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;min-height:100vh;min-height:100dvh;">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:36px 32px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.15);text-align:center;border-top:4px solid var(--red);animation:popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);">
+      <div style="font-size:2.4em;margin-bottom:10px;">🎁</div>
+      <h2 style="font-family:'Merriweather',serif;font-size:1.2em;margin-bottom:6px;color:var(--text);">List Item Editor</h2>
+      <p style="font-size:0.82em;color:var(--muted);margin-bottom:24px;">Sign in to continue</p>
+
+      <div style="text-align:left;margin-bottom:14px;">
+        <label style="font-size:0.76em;color:var(--muted);font-weight:500;display:block;margin-bottom:6px;">Username</label>
+        <input id="loginUsername" type="text" autocomplete="username" placeholder="e.g. tristan"
+          style="width:100%;padding:10px 12px;font-family:'Lexend',sans-serif;font-size:0.9em;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);outline:none;transition:border-color 0.2s;box-sizing:border-box;" />
+      </div>
+      <div style="text-align:left;margin-bottom:14px;">
+        <label style="font-size:0.76em;color:var(--muted);font-weight:500;display:block;margin-bottom:6px;">PIN</label>
+        <input id="loginPin" type="password" maxlength="4" autocomplete="current-password" placeholder="• • • •"
+          style="width:100%;padding:10px 14px;font-family:'Lexend',sans-serif;font-size:1.1em;letter-spacing:0.4em;text-align:center;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);outline:none;transition:border-color 0.2s;box-sizing:border-box;" />
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;text-align:left;">
+        <input type="checkbox" id="rememberMe" style="width:15px;height:15px;accent-color:var(--red);cursor:pointer;flex-shrink:0;" />
+        <label for="rememberMe" style="font-size:0.8em;color:var(--muted);cursor:pointer;user-select:none;">Remember my login on this device</label>
+      </div>
+
+      <div id="loginError" style="font-size:0.78em;color:#c0392b;min-height:18px;margin-bottom:12px;"></div>
+      <button id="loginSubmit"
+        style="width:100%;padding:11px;font-family:'Lexend',sans-serif;font-size:0.9em;background:var(--red);color:#fff;border:none;border-radius:8px;cursor:pointer;transition:opacity 0.15s;">
+        Sign In
       </button>
+
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+        <button id="showAdminPanel" style="font-family:'Lexend',sans-serif;font-size:0.75em;color:var(--faint);background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:2px;">
+          Admin — Manage Users
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Panel Gate -->
+  <div id="adminGate" style="position:fixed;inset:0;background:var(--bg);z-index:9998;display:none;align-items:center;justify-content:center;padding:20px;min-height:100vh;min-height:100dvh;">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px 32px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.15);border-top:4px solid #8f2121;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <h2 style="font-family:'Merriweather',serif;font-size:1.1em;color:var(--text);margin:0;">🛡️ User Management</h2>
+        <button id="closeAdminPanel" style="background:none;border:none;cursor:pointer;color:var(--faint);font-size:1.2em;padding:4px;">✕</button>
+      </div>
+
+      <div style="margin-bottom:20px;padding:14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);">
+        <div style="font-size:0.72em;text-transform:uppercase;letter-spacing:0.08em;color:var(--faint);margin-bottom:10px;">Admin PIN Required</div>
+        <input id="adminPinInput" type="password" maxlength="4" placeholder="• • • •"
+          style="width:100%;padding:9px 12px;font-family:'Lexend',sans-serif;font-size:1em;letter-spacing:0.3em;text-align:center;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);outline:none;margin-bottom:10px;box-sizing:border-box;" />
+        <button id="adminVerifyBtn" style="width:100%;padding:9px;font-family:'Lexend',sans-serif;font-size:0.85em;background:var(--red);color:#fff;border:none;border-radius:8px;cursor:pointer;">Verify</button>
+        <div id="adminPinError" style="font-size:0.75em;color:#c0392b;margin-top:6px;min-height:16px;"></div>
+      </div>
+
+      <div id="adminContent" style="display:none;">
+        <!-- Create user -->
+        <div style="margin-bottom:16px;padding:14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);">
+          <div style="font-size:0.72em;text-transform:uppercase;letter-spacing:0.08em;color:var(--faint);margin-bottom:10px;">Create New User</div>
+          <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+            <input id="newUsername" type="text" placeholder="Username" style="flex:1;min-width:120px;padding:8px 10px;font-family:'Lexend',sans-serif;font-size:0.85em;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);outline:none;box-sizing:border-box;" />
+            <input id="newUserPin" type="text" maxlength="4" placeholder="PIN" style="width:80px;padding:8px 10px;font-family:'Lexend',sans-serif;font-size:0.85em;letter-spacing:0.2em;text-align:center;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);outline:none;box-sizing:border-box;" />
+          </div>
+          <button id="createUserBtn" style="width:100%;padding:8px;font-family:'Lexend',sans-serif;font-size:0.82em;background:var(--green);color:#fff;border:none;border-radius:7px;cursor:pointer;">+ Create User</button>
+          <div id="createUserMsg" style="font-size:0.75em;margin-top:6px;min-height:16px;"></div>
+        </div>
+
+        <!-- User list -->
+        <div style="padding:14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:0.72em;text-transform:uppercase;letter-spacing:0.08em;color:var(--faint);">Existing Users</div>
+            <button id="refreshUsersBtn" style="font-family:'Lexend',sans-serif;font-size:0.72em;background:none;border:1px solid var(--border);border-radius:5px;padding:2px 8px;cursor:pointer;color:var(--muted);">Refresh</button>
+          </div>
+          <div id="userList" style="font-size:0.85em;color:var(--muted);">Loading…</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -364,13 +458,22 @@
       <div class="page-header-icon">🎁</div>
       <div>
         <h1>List Item Editor</h1>
-
       </div>
     </div>
-    <div class="dark-toggle" id="darkToggleWrap">
-      <span class="dark-toggle-label" id="darkLabel">🌙 Dark</span>
-      <div class="toggle-track" id="darkTrack">
-        <div class="toggle-thumb"></div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="dark-toggle" id="darkToggleWrap">
+        <span class="dark-toggle-label" id="darkLabel">🌙 Dark</span>
+        <div class="toggle-track" id="darkTrack">
+          <div class="toggle-thumb"></div>
+        </div>
+      </div>
+      <div class="profile-wrap" id="profileWrap" style="display:none;">
+        <div class="profile-avatar" id="profileAvatar" title="Account">?</div>
+        <div class="profile-dropdown" id="profileDropdown">
+          <div class="profile-dropdown-name" id="profileName">—</div>
+          <div class="profile-dropdown-label">Signed in</div>
+          <button class="profile-logout-btn" id="logoutBtn">↩ Sign Out</button>
+        </div>
       </div>
     </div>
   </div>
@@ -497,52 +600,180 @@
   </div>
 
   <script>
-    // ── PIN Gate ───────────────────────────────────────────────────────────
-    const pinGate    = document.getElementById('pinGate');
-    const pinInput   = document.getElementById('pinInput');
-    const pinSubmit  = document.getElementById('pinSubmit');
-    const pinError   = document.getElementById('pinError');
+    const WORKER_URL = "https://claude-proxy.tristanarbet.workers.dev";
 
-    // Check if already unlocked in this session
-    if (sessionStorage.getItem('editorUnlocked') === 'true') {
-      pinGate.style.display = 'none';
+    // ── Login system ───────────────────────────────────────────────────────
+    const loginGate   = document.getElementById('loginGate');
+    const adminGate   = document.getElementById('adminGate');
+
+    // Check remembered login
+    let rememberedUser = null;
+    try {
+      const saved = localStorage.getItem('editorUser');
+      if (saved) {
+        rememberedUser = JSON.parse(saved);
+        document.getElementById('loginUsername').value = rememberedUser.username || '';
+        document.getElementById('loginPin').value      = rememberedUser.pin || '';
+        document.getElementById('rememberMe').checked  = true;
+      }
+    } catch {}
+
+    // Check session
+    if (sessionStorage.getItem('editorLoggedIn') === 'true') {
+      loginGate.style.display = 'none';
     }
 
-    async function tryPin() {
-      const pin = pinInput.value;
-      if (!pin) return;
-      pinSubmit.disabled = true;
-      pinSubmit.textContent = 'Checking...';
+    function dismissLogin() {
+      loginGate.style.animation = 'fadeOut 0.25s ease forwards';
+      setTimeout(() => { loginGate.style.display = 'none'; }, 260);
+    }
+
+    async function tryLogin() {
+      const username = document.getElementById('loginUsername').value.trim();
+      const pin      = document.getElementById('loginPin').value.trim();
+      const remember = document.getElementById('rememberMe').checked;
+      const errEl    = document.getElementById('loginError');
+      const btn      = document.getElementById('loginSubmit');
+
+      if (!username || !pin) { errEl.textContent = 'Please enter your username and PIN.'; return; }
+
+      btn.disabled = true; btn.textContent = 'Signing in...';
       try {
-        const res = await fetch(WORKER_URL + '/verify-pin', {
+        const res = await fetch(WORKER_URL + '/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pin })
+          body: JSON.stringify({ username, pin })
         });
         const data = await res.json();
-        if (data.valid === true) {
-          sessionStorage.setItem('editorUnlocked', 'true');
-          pinGate.style.animation = 'fadeOut 0.25s ease forwards';
-          setTimeout(() => { pinGate.style.display = 'none'; }, 250);
+        if (data.success) {
+          sessionStorage.setItem('editorLoggedIn', 'true');
+          sessionStorage.setItem('editorUsername', username);
+          if (remember) {
+            try { localStorage.setItem('editorUser', JSON.stringify({ username, pin })); } catch {}
+          } else {
+            try { localStorage.removeItem('editorUser'); } catch {}
+          }
+          dismissLogin();
         } else {
-          pinError.textContent = 'Incorrect PIN — try again.';
-          pinInput.value = '';
-          pinInput.style.borderColor = '#c0392b';
-          setTimeout(() => { pinInput.style.borderColor = ''; pinError.textContent = ''; }, 1500);
+          errEl.textContent = data.error || 'Login failed — try again.';
+          document.getElementById('loginPin').value = '';
+          document.getElementById('loginPin').style.borderColor = '#c0392b';
+          setTimeout(() => { document.getElementById('loginPin').style.borderColor = ''; errEl.textContent = ''; }, 1800);
         }
       } catch {
-        pinError.textContent = 'Could not verify PIN — check connection.';
-        setTimeout(() => { pinError.textContent = ''; }, 2000);
+        errEl.textContent = 'Could not connect — check your connection.';
+        setTimeout(() => { errEl.textContent = ''; }, 2000);
       } finally {
-        pinSubmit.disabled = false;
-        pinSubmit.textContent = 'Unlock';
+        btn.disabled = false; btn.textContent = 'Sign In';
       }
     }
 
-    pinSubmit.addEventListener('click', tryPin);
-    pinInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryPin(); });
+    document.getElementById('loginSubmit').addEventListener('click', tryLogin);
+    document.getElementById('loginPin').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+    document.getElementById('loginUsername').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPin').focus(); });
 
-    const WORKER_URL = "https://claude-proxy.tristanarbet.workers.dev";
+    // ── Admin panel ────────────────────────────────────────────────────────
+    let adminVerified = false;
+    let verifiedAdminPin = '';
+
+    document.getElementById('showAdminPanel').addEventListener('click', () => {
+      adminGate.style.display = 'flex';
+      document.getElementById('adminContent').style.display = 'none';
+      adminVerified = false;
+    });
+    document.getElementById('closeAdminPanel').addEventListener('click', () => {
+      adminGate.style.display = 'none';
+    });
+
+    document.getElementById('adminVerifyBtn').addEventListener('click', async () => {
+      const pin = document.getElementById('adminPinInput').value.trim();
+      const errEl = document.getElementById('adminPinError');
+      if (!pin) return;
+      try {
+        const res = await fetch(WORKER_URL + '/verify-pin', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin })
+        });
+        const data = await res.json();
+        if (data.valid) {
+          adminVerified = true;
+          verifiedAdminPin = pin;
+          document.getElementById('adminContent').style.display = 'block';
+          document.getElementById('adminPinInput').closest('div').style.display = 'none';
+          loadUsers();
+        } else {
+          errEl.textContent = 'Incorrect admin PIN.';
+          setTimeout(() => { errEl.textContent = ''; }, 1500);
+        }
+      } catch { errEl.textContent = 'Connection error.'; }
+    });
+
+    async function loadUsers() {
+      const listEl = document.getElementById('userList');
+      listEl.textContent = 'Loading...';
+      try {
+        const res = await fetch(WORKER_URL + '/list-users', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ adminPin: verifiedAdminPin })
+        });
+        const data = await res.json();
+        if (data.success && data.users.length > 0) {
+          listEl.innerHTML = data.users.map(u => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);">
+              <span style="font-family:'Lexend',sans-serif;">👤 ${u}</span>
+              <button onclick="deleteUser('${u}')" style="font-family:'Lexend',sans-serif;font-size:0.72em;background:none;border:1px solid #c0392b;color:#c0392b;border-radius:5px;padding:2px 8px;cursor:pointer;">Remove</button>
+            </div>`).join('');
+        } else {
+          listEl.textContent = data.users?.length === 0 ? 'No users yet.' : 'Failed to load users.';
+        }
+      } catch { listEl.textContent = 'Error loading users.'; }
+    }
+
+    window.deleteUser = async function(username) {
+      if (!confirm('Remove user "' + username + '"?')) return;
+      try {
+        const res = await fetch(WORKER_URL + '/delete-user', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ adminPin: verifiedAdminPin, username })
+        });
+        const data = await res.json();
+        if (data.success) loadUsers();
+      } catch {}
+    };
+
+    document.getElementById('createUserBtn').addEventListener('click', async () => {
+      const username = document.getElementById('newUsername').value.trim();
+      const pin      = document.getElementById('newUserPin').value.trim();
+      const msgEl    = document.getElementById('createUserMsg');
+      if (!username || pin.length !== 4) {
+        msgEl.style.color = '#c0392b';
+        msgEl.textContent = 'Username and 4-digit PIN required.';
+        return;
+      }
+      try {
+        const res = await fetch(WORKER_URL + '/create-user', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ adminPin: verifiedAdminPin, username, pin })
+        });
+        const data = await res.json();
+        if (data.success) {
+          msgEl.style.color = '#27ae60';
+          msgEl.textContent = 'User "' + username + '" created!';
+          document.getElementById('newUsername').value = '';
+          document.getElementById('newUserPin').value = '';
+          loadUsers();
+          setTimeout(() => { msgEl.textContent = ''; }, 3000);
+        } else {
+          msgEl.style.color = '#c0392b';
+          msgEl.textContent = data.error || 'Failed to create user.';
+        }
+      } catch {
+        msgEl.style.color = '#c0392b';
+        msgEl.textContent = 'Connection error.';
+      }
+    });
+
+    document.getElementById('refreshUsersBtn').addEventListener('click', loadUsers);
 
     // ── Dark mode ──────────────────────────────────────────────────────────
     const darkTrack = document.getElementById('darkTrack');
@@ -956,13 +1187,31 @@ JUST ANSWER THE QUESTIONS IN A CLEAN ORGANIZED FORMAT. DO NOT ADD ANY OTHER FLUF
     });
 
     // ── Copy full file ─────────────────────────────────────────────────────
-    document.getElementById('copyBtn').addEventListener('click', () => {
+    document.getElementById('copyBtn').addEventListener('click', async () => {
       if (!window._generatedCode) return;
-      navigator.clipboard.writeText(window._generatedCode).then(() => {
-        const btn = document.getElementById('copyBtn');
-        btn.textContent = '✓ Copied!'; btn.classList.add('copied');
-        setTimeout(() => { btn.textContent = 'Copy Full File'; btn.classList.remove('copied'); }, 2000);
+      await navigator.clipboard.writeText(window._generatedCode);
+      const btn = document.getElementById('copyBtn');
+      btn.textContent = '✓ Copied!'; btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy Full File'; btn.classList.remove('copied'); }, 2000);
+
+      // Ask if deploying
+      const res = await showModal({
+        icon: '🚀',
+        title: 'Are you deploying this?',
+        body: 'The full <strong>index.html</strong> is copied to your clipboard.<br><br>Are you about to push this to GitHub and upload to media.tristanarbet.com?',
+        buttons: [
+          { label: 'Not Yet', style: 'btn-secondary' },
+          { label: 'Yes, Deploying!', style: 'btn-primary' }
+        ]
       });
+      if (res?.action === 'Yes, Deploying!') {
+        await showModal({
+          icon: '✅',
+          title: 'Deployment Checklist',
+          body: '<strong>Before you go:</strong><br><br>1. Push <code style="background:rgba(0,0,0,0.08);padding:1px 4px;border-radius:3px;">index.html</code> to GitHub<br>2. Upload to <code style="background:rgba(0,0,0,0.08);padding:1px 4px;border-radius:3px;">media.tristanarbet.com/priv/</code><br>3. Update the fetch URL in this editor if the filename changed',
+          buttons: [{ label: 'Got It!', style: 'btn-primary' }]
+        });
+      }
     });
 
     // ── Toggle full code view ──────────────────────────────────────────────
@@ -976,6 +1225,49 @@ JUST ANSWER THE QUESTIONS IN A CLEAN ORGANIZED FORMAT. DO NOT ADD ANY OTHER FLUF
         codeText.textContent = window._generatedCode;
       }
     });
+
+    // ── Profile avatar ────────────────────────────────────────────────────
+    function initProfile() {
+      const username = sessionStorage.getItem('editorUsername') || '?';
+      const initial  = username.charAt(0).toUpperCase();
+      const wrap     = document.getElementById('profileWrap');
+      const avatar   = document.getElementById('profileAvatar');
+      const nameEl   = document.getElementById('profileName');
+      const dropdown = document.getElementById('profileDropdown');
+
+      wrap.style.display   = 'block';
+      avatar.textContent   = initial;
+      nameEl.textContent   = username;
+
+      // Toggle dropdown on click
+      avatar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('open');
+      });
+
+      // Close on outside click
+      document.addEventListener('click', () => dropdown.classList.remove('open'));
+
+      // Logout
+      document.getElementById('logoutBtn').addEventListener('click', () => {
+        sessionStorage.removeItem('editorLoggedIn');
+        sessionStorage.removeItem('editorUsername');
+        try { localStorage.removeItem('editorUser'); } catch {}
+        location.reload();
+      });
+    }
+
+    // Call initProfile after login
+    const _origDismiss = dismissLogin;
+    dismissLogin = function() {
+      _origDismiss();
+      setTimeout(initProfile, 300);
+    };
+
+    // Also init if already logged in via session
+    if (sessionStorage.getItem('editorLoggedIn') === 'true') {
+      document.addEventListener('DOMContentLoaded', initProfile);
+    }
 
     // ── Not Amazon toggle ─────────────────────────────────────────────────
     let isNotAmazon = false;
