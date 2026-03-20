@@ -779,12 +779,12 @@
             listEl.innerHTML = [
               ...activeUsers.map(u => `
                 <div id="user-row-${u}" style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);transition:opacity 0.3s;">
-                  <span style="font-family:'Lexend',sans-serif;">👤 ${u}</span>
-                  <button onclick="deleteUser('${u}')" style="font-family:'Lexend',sans-serif;font-size:0.72em;background:none;border:1px solid #c0392b;color:#c0392b;border-radius:5px;padding:2px 8px;cursor:pointer;">Remove</button>
+                  <span style="font-family:'Lexend',sans-serif;">👤 ${sanitize(u)}</span>
+                  <button onclick="deleteUser('${sanitize(u)}')" style="font-family:'Lexend',sans-serif;font-size:0.72em;background:none;border:1px solid #c0392b;color:#c0392b;border-radius:5px;padding:2px 8px;cursor:pointer;">Remove</button>
                 </div>`),
               ...pendingUsers.map(u => `
                 <div id="user-row-${u}" style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);opacity:0.45;">
-                  <span style="font-family:'Lexend',sans-serif;color:var(--faint);">👤 ${u} &nbsp;<em style="font-size:0.82em;">(Deletion Pending…)</em></span>
+                  <span style="font-family:'Lexend',sans-serif;color:var(--faint);">👤 ${sanitize(u)} &nbsp;<em style="font-size:0.82em;">(Deletion Pending…)</em></span>
                   <span style="font-size:0.72em;color:#999;font-family:'Lexend',sans-serif;">Deleting…</span>
                 </div>`)
             ].join('');
@@ -793,6 +793,16 @@
           listEl.textContent = 'Failed to load users.';
         }
       } catch { listEl.textContent = 'Error loading users.'; }
+    }
+
+    // Sanitize strings for safe innerHTML insertion
+    function sanitize(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     }
 
     // Pending deletion persistence — timestamp-based, auto-expires after 10 min
@@ -909,7 +919,7 @@
           const newRow = document.createElement('div');
           newRow.id = 'user-row-' + username;
           newRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);transition:opacity 0.3s;opacity:0;';
-          newRow.innerHTML = `<span style="font-family:'Lexend',sans-serif;">👤 ${username}</span><button onclick="deleteUser('${username}')" style="font-family:'Lexend',sans-serif;font-size:0.72em;background:none;border:1px solid #c0392b;color:#c0392b;border-radius:5px;padding:2px 8px;cursor:pointer;">Remove</button>`;
+          newRow.innerHTML = `<span style="font-family:'Lexend',sans-serif;">👤 ${sanitize(username)}</span><button onclick="deleteUser('${sanitize(username)}')" style="font-family:'Lexend',sans-serif;font-size:0.72em;background:none;border:1px solid #c0392b;color:#c0392b;border-radius:5px;padding:2px 8px;cursor:pointer;">Remove</button>`;
           listEl.appendChild(newRow);
           requestAnimationFrame(() => { newRow.style.opacity = '1'; });
           setTimeout(() => { msgEl.textContent = ''; }, 3000);
