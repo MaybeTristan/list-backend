@@ -1306,7 +1306,11 @@ ASIN: 10-character Amazon code from the URL (e.g. B082F2PKQ5), write N/A if not 
     });
 
     // ── Profile avatar ────────────────────────────────────────────────────
+    let profileInitialized = false;
     function initProfile() {
+      if (profileInitialized) return;
+      profileInitialized = true;
+
       const username = sessionStorage.getItem('editorUsername') || '?';
       const initial  = username.charAt(0).toUpperCase();
       const wrap     = document.getElementById('profileWrap');
@@ -1314,11 +1318,33 @@ ASIN: 10-character Amazon code from the URL (e.g. B082F2PKQ5), write N/A if not 
       const nameEl   = document.getElementById('profileName');
       const dropdown = document.getElementById('profileDropdown');
 
-      wrap.style.display   = 'block';
-      avatar.textContent   = initial;
-      nameEl.textContent   = username;
+      wrap.style.display = 'block';
+      avatar.textContent = initial;
+      nameEl.textContent = username;
 
-      // Toggle dropdown on click
+      // Add admin button to dropdown
+      const adminBtn = document.createElement('button');
+      adminBtn.className = 'profile-logout-btn';
+      adminBtn.style.marginBottom = '8px';
+      adminBtn.textContent = '🛡️ Manage Users';
+      adminBtn.addEventListener('click', () => {
+        dropdown.classList.remove('open');
+        adminGate.style.display = 'flex';
+        if (adminVerified) {
+          document.getElementById('adminPinSection').style.display = 'none';
+          document.getElementById('adminContent').style.display = 'block';
+          loadUsers();
+        } else {
+          document.getElementById('adminPinSection').style.display = 'block';
+          document.getElementById('adminContent').style.display = 'none';
+          document.getElementById('adminPinInput').value = '';
+        }
+      });
+      // Insert admin button before logout
+      const logoutBtn = document.getElementById('logoutBtn');
+      logoutBtn.parentNode.insertBefore(adminBtn, logoutBtn);
+
+      // Toggle dropdown
       avatar.addEventListener('click', (e) => {
         e.stopPropagation();
         dropdown.classList.toggle('open');
@@ -1328,7 +1354,7 @@ ASIN: 10-character Amazon code from the URL (e.g. B082F2PKQ5), write N/A if not 
       document.addEventListener('click', () => dropdown.classList.remove('open'));
 
       // Logout
-      document.getElementById('logoutBtn').addEventListener('click', async () => {
+      logoutBtn.addEventListener('click', async () => {
         const token = localStorage.getItem('editorToken');
         if (token) {
           try {
@@ -1345,7 +1371,7 @@ ASIN: 10-character Amazon code from the URL (e.g. B082F2PKQ5), write N/A if not 
       });
     }
 
-    // Init profile if already logged in via session (non-token)
+    // Init profile if already in session
     if (sessionStorage.getItem('editorLoggedIn') === 'true') {
       document.addEventListener('DOMContentLoaded', initProfile);
     }
