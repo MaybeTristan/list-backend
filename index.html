@@ -1006,12 +1006,12 @@
           month: 'short', day: 'numeric', year: 'numeric',
           hour: 'numeric', minute: '2-digit'
         });
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap;">
-          <div>
-            <div style="font-weight:500;color:var(--text);font-family:'Lexend',sans-serif;">${sanitize(e.itemName)}</div>
-            <div style="font-size:0.75em;color:var(--faint);">by ${sanitize(e.username)}</div>
+        return `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);gap:12px;flex-wrap:nowrap;">
+          <div style="min-width:0;flex:1;">
+            <div style="font-weight:500;color:var(--text);font-family:'Lexend',sans-serif;overflow-wrap:break-word;">${sanitize(e.itemName)}</div>
+            <div style="font-size:0.75em;color:var(--faint);margin-top:2px;">by ${sanitize(e.username)}</div>
           </div>
-          <div style="font-size:0.75em;color:var(--faint);white-space:nowrap;">${date}</div>
+          <div style="font-size:0.75em;color:var(--faint);white-space:nowrap;flex-shrink:0;padding-top:2px;">${date}</div>
         </div>`;
       }).join('');
     }
