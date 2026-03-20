@@ -603,35 +603,36 @@
     const WORKER_URL = "https://claude-proxy.tristanarbet.workers.dev";
 
     // ── Login system ───────────────────────────────────────────────────────
-    const loginGate   = document.getElementById('loginGate');
-    const adminGate   = document.getElementById('adminGate');
+    const loginGate = document.getElementById('loginGate');
+    const adminGate = document.getElementById('adminGate');
 
-    // Check remembered login
-    let rememberedUser = null;
-    try {
-      const saved = localStorage.getItem('editorUser');
-      if (saved) {
-        rememberedUser = JSON.parse(saved);
-        document.getElementById('loginUsername').value = rememberedUser.username || '';
-        document.getElementById('loginPin').value      = rememberedUser.pin || '';
-        document.getElementById('rememberMe').checked  = true;
-      }
-    } catch {}
-
-    // Check session — only skip login if remember was explicitly set
-    const hasRemembered = !!localStorage.getItem('editorUser');
-    if (hasRemembered && sessionStorage.getItem('editorLoggedIn') === 'true') {
-      loginGate.style.display = 'none';
-    } else if (!hasRemembered) {
-      // Clear stale session if remember me was not checked
-      sessionStorage.removeItem('editorLoggedIn');
-      sessionStorage.removeItem('editorUsername');
-    }
-
-    function dismissLogin() {
+    function dismissLogin(username) {
+      sessionStorage.setItem('editorLoggedIn', 'true');
+      sessionStorage.setItem('editorUsername', username);
       loginGate.style.animation = 'fadeOut 0.25s ease forwards';
-      setTimeout(() => { loginGate.style.display = 'none'; }, 260);
+      setTimeout(() => { loginGate.style.display = 'none'; initProfile(); }, 260);
     }
+
+    // ── Token auto-login on page load ──────────────────────────────────────
+    (async function checkToken() {
+      const token = localStorage.getItem('editorToken');
+      if (!token) return;
+      try {
+        const res = await fetch(WORKER_URL + '/verify-token', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+        const data = await res.json();
+        if (data.valid) {
+          // Auto-fill username field so it looks nice
+          document.getElementById('loginUsername').value = data.username;
+          dismissLogin(data.username);
+        } else {
+          // Token expired or invalid — clear it
+          localStorage.removeItem('editorToken');
+        }
+      } catch {}
+    })();
 
     async function tryLogin() {
       const username = document.getElementById('loginUsername').value.trim();
@@ -645,20 +646,17 @@
       btn.disabled = true; btn.textContent = 'Signing in...';
       try {
         const res = await fetch(WORKER_URL + '/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, pin })
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, pin, remember })
         });
         const data = await res.json();
         if (data.success) {
-          sessionStorage.setItem('editorLoggedIn', 'true');
-          sessionStorage.setItem('editorUsername', username);
-          if (remember) {
-            try { localStorage.setItem('editorUser', JSON.stringify({ username, pin })); } catch {}
+          if (remember && data.token) {
+            localStorage.setItem('editorToken', data.token);
           } else {
-            try { localStorage.removeItem('editorUser'); } catch {}
+            localStorage.removeItem('editorToken');
           }
-          dismissLogin();
+          dismissLogin(username);
         } else {
           errEl.textContent = data.error || 'Login failed — try again.';
           document.getElementById('loginPin').value = '';
@@ -743,16 +741,39 @@
           if (data.users.length === 0) {
             listEl.textContent = 'No users yet.';
           } else {
+            const pending = getPendingDeletions();
             listEl.innerHTML = data.users.map(u => `
               <div id="user-row-${u}" style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);transition:opacity 0.3s;">
-                <span style="font-family:'Lexend',sans-serif;">👤 ${u}</span>
-                <button onclick="deleteUser('${u}')" style="font-family:'Lexend',sans-serif;font-size:0.72em;background:none;border:1px solid #c0392b;color:#c0392b;border-radius:5px;padding:2px 8px;cursor:pointer;">Remove</button>
+                <span style="font-family:'Lexend',sans-serif;">👤 ${u}${pending.includes(u) ? '  (Deletion Pending…)' : ''}</span>
+                <button onclick="deleteUser('${u}')" style="font-family:'Lexend',sans-serif;font-size:0.72em;background:none;border:1px solid #c0392b;color:#c0392b;border-radius:5px;padding:2px 8px;cursor:pointer;">${pending.includes(u) ? 'Deleting…' : 'Remove'}</button>
               </div>`).join('');
+            // Apply visual pending state to any pending rows
+            pending.forEach(u => applyPendingState(document.getElementById('user-row-' + u), u));
           }
         } else {
           listEl.textContent = 'Failed to load users.';
         }
       } catch { listEl.textContent = 'Error loading users.'; }
+    }
+
+    // Pending deletion persistence
+    function getPendingDeletions() {
+      try { return JSON.parse(localStorage.getItem('pendingDeletions') || '[]'); } catch { return []; }
+    }
+    function addPendingDeletion(u) {
+      const list = getPendingDeletions();
+      if (!list.includes(u)) { list.push(u); localStorage.setItem('pendingDeletions', JSON.stringify(list)); }
+    }
+    function removePendingDeletion(u) {
+      localStorage.setItem('pendingDeletions', JSON.stringify(getPendingDeletions().filter(x => x !== u)));
+    }
+    function applyPendingState(rowEl, username) {
+      if (!rowEl) return;
+      rowEl.style.opacity = '0.45';
+      const btn = rowEl.querySelector('button');
+      if (btn) { btn.textContent = 'Deleting...'; btn.disabled = true; btn.style.borderColor = '#999'; btn.style.color = '#999'; }
+      const nameEl = rowEl.querySelector('span');
+      if (nameEl) nameEl.textContent = '👤 ' + username + '  (Deletion Pending...)';
     }
 
     window.deleteUser = async function(username) {
@@ -773,7 +794,7 @@
         });
         const data = await res.json();
         if (data.success) {
-          // Fade out and remove the row directly — no full reload
+          // Fade out visually immediately
           if (rowEl) {
             rowEl.style.opacity = '0';
             rowEl.style.maxHeight = rowEl.offsetHeight + 'px';
@@ -785,6 +806,25 @@
             }, 300);
             setTimeout(() => rowEl.remove(), 720);
           }
+          // Silently verify deletion after 2.5s to account for KV propagation
+          setTimeout(async () => {
+            try {
+              const verifyRes = await fetch(WORKER_URL + '/list-users', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ adminPin: verifiedAdminPin })
+              });
+              const verifyData = await verifyRes.json();
+              if (verifyData.success && verifyData.users.includes(username)) {
+                // Still there — retry delete silently once more
+                await fetch(WORKER_URL + '/delete-user', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ adminPin: verifiedAdminPin, username })
+                });
+                // Reload list after second attempt
+                setTimeout(() => loadUsers(), 1500);
+              }
+            } catch {}
+          }, 2500);
         } else {
           if (rowEl) rowEl.style.opacity = '1';
         }
@@ -810,7 +850,7 @@
         const data = await res.json();
         if (data.success) {
           msgEl.style.color = '#27ae60';
-          msgEl.textContent = 'User "' + username + '" created!';
+          msgEl.innerHTML = 'User <strong>' + username + '</strong> created! <span style="font-weight:normal;opacity:0.8;">— Changes may take a moment to propagate across all sessions.</span>';
           document.getElementById('newUsername').value = '';
           document.getElementById('newUserPin').value = '';
           // Add user to list immediately without full reload
@@ -1288,22 +1328,24 @@ ASIN: 10-character Amazon code from the URL (e.g. B082F2PKQ5), write N/A if not 
       document.addEventListener('click', () => dropdown.classList.remove('open'));
 
       // Logout
-      document.getElementById('logoutBtn').addEventListener('click', () => {
+      document.getElementById('logoutBtn').addEventListener('click', async () => {
+        const token = localStorage.getItem('editorToken');
+        if (token) {
+          try {
+            await fetch(WORKER_URL + '/logout', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token })
+            });
+          } catch {}
+          localStorage.removeItem('editorToken');
+        }
         sessionStorage.removeItem('editorLoggedIn');
         sessionStorage.removeItem('editorUsername');
-        try { localStorage.removeItem('editorUser'); } catch {}
         location.reload();
       });
     }
 
-    // Call initProfile after login
-    const _origDismiss = dismissLogin;
-    dismissLogin = function() {
-      _origDismiss();
-      setTimeout(initProfile, 300);
-    };
-
-    // Also init if already logged in via session
+    // Init profile if already logged in via session (non-token)
     if (sessionStorage.getItem('editorLoggedIn') === 'true') {
       document.addEventListener('DOMContentLoaded', initProfile);
     }
