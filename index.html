@@ -348,10 +348,6 @@
   <!-- Step 1 -->
   <div class="card">
     <div class="card-title">Step 1 — Item Details</div>
-    <div class="not-amazon-row" style="margin-bottom:16px;">
-      <div id="notAmazonToggle"><div class="toggle-thumb"></div></div>
-      <span class="not-amazon-label">Not on Amazon — skip ASIN lookup</span>
-    </div>
     <div class="field-row">
       <div class="field full">
         <label id="linkLabel">Item Link * — paste any link and we'll auto-detect the ASIN</label>
@@ -702,7 +698,7 @@
       if (!template) {
         await showModal({
           icon: '⚠️', title: 'Could Not Load index.html',
-          body: 'The editor couldn't fetch your current <strong>index.html</strong>. Make sure this file is hosted in a sibling folder on GitHub Pages, or that CORS allows the fetch.<br><br>Try hosting both files in the same repo.',
+          body: 'The editor could not fetch your current <strong>index.html</strong>. Make sure <strong>media.tristanarbet.com</strong> has CORS enabled for this domain.',
           type: 'warning', buttons: [{ label: 'OK', style: 'btn-primary' }]
         });
         return;
@@ -771,7 +767,7 @@
       asinSection.classList.toggle('hidden', isNotAmazon);
       // Update link label and price label
       const linkLabel = document.querySelector('label[for="itemLink"]') || document.querySelector('#itemLink').previousElementSibling;
-      if (linkLabel) linkLabel.textContent = isNotAmazon ? 'Item Link *' : 'Item Link * — paste any link and we'll auto-detect the ASIN';
+      if (linkLabel) linkLabel.textContent = isNotAmazon ? 'Item Link *' : 'Item Link * — paste any link and we will auto-detect the ASIN';
       document.getElementById('priceLabel').textContent = isNotAmazon
         ? 'Price *'
         : 'Fallback / Static Price (shown if no ASIN or price unavailable)';
