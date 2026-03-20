@@ -409,7 +409,7 @@
         <button id="closeAdminPanel" style="background:none;border:none;cursor:pointer;color:var(--faint);font-size:1.2em;padding:4px;">✕</button>
       </div>
 
-      <div style="margin-bottom:20px;padding:14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);">
+      <div id="adminPinSection" style="margin-bottom:20px;padding:14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);">
         <div style="font-size:0.72em;text-transform:uppercase;letter-spacing:0.08em;color:var(--faint);margin-bottom:10px;">Admin PIN Required</div>
         <input id="adminPinInput" type="password" maxlength="4" placeholder="• • • •"
           style="width:100%;padding:9px 12px;font-family:'Lexend',sans-serif;font-size:1em;letter-spacing:0.3em;text-align:center;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);outline:none;margin-bottom:10px;box-sizing:border-box;" />
@@ -680,12 +680,22 @@
     // ── Admin panel ────────────────────────────────────────────────────────
     let adminVerified = false;
     let verifiedAdminPin = '';
+    const adminPinSection = document.getElementById('adminPinSection');
 
     document.getElementById('showAdminPanel').addEventListener('click', () => {
       adminGate.style.display = 'flex';
-      document.getElementById('adminContent').style.display = 'none';
-      adminVerified = false;
+      // If already verified this session, go straight to content
+      if (adminVerified) {
+        adminPinSection.style.display = 'none';
+        document.getElementById('adminContent').style.display = 'block';
+        loadUsers();
+      } else {
+        adminPinSection.style.display = 'block';
+        document.getElementById('adminContent').style.display = 'none';
+        document.getElementById('adminPinInput').value = '';
+      }
     });
+
     document.getElementById('closeAdminPanel').addEventListener('click', () => {
       adminGate.style.display = 'none';
     });
@@ -703,8 +713,8 @@
         if (data.valid) {
           adminVerified = true;
           verifiedAdminPin = pin;
+          adminPinSection.style.display = 'none';
           document.getElementById('adminContent').style.display = 'block';
-          document.getElementById('adminPinInput').closest('div').style.display = 'none';
           loadUsers();
         } else {
           errEl.textContent = 'Incorrect admin PIN.';
@@ -713,36 +723,48 @@
       } catch { errEl.textContent = 'Connection error.'; }
     });
 
+    document.getElementById('adminPinInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('adminVerifyBtn').click();
+    });
+
     async function loadUsers() {
       const listEl = document.getElementById('userList');
-      listEl.textContent = 'Loading...';
+      // Don't flash "Loading..." if list already has content — update silently
+      if (!listEl.innerHTML || listEl.textContent === 'Loading...' || listEl.textContent === 'No users yet.' || listEl.textContent === 'Error loading users.') {
+        listEl.textContent = 'Loading...';
+      }
       try {
         const res = await fetch(WORKER_URL + '/list-users', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ adminPin: verifiedAdminPin })
         });
         const data = await res.json();
-        if (data.success && data.users.length > 0) {
-          listEl.innerHTML = data.users.map(u => `
-            <div id="user-row-${u}" style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);transition:opacity 0.2s;">
-              <span style="font-family:'Lexend',sans-serif;">👤 ${u}</span>
-              <button onclick="deleteUser('${u}', document.getElementById('user-row-${u}'))" style="font-family:'Lexend',sans-serif;font-size:0.72em;background:none;border:1px solid #c0392b;color:#c0392b;border-radius:5px;padding:2px 8px;cursor:pointer;">Remove</button>
-            </div>`).join('');
+        if (data.success) {
+          if (data.users.length === 0) {
+            listEl.textContent = 'No users yet.';
+          } else {
+            listEl.innerHTML = data.users.map(u => `
+              <div id="user-row-${u}" style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);transition:opacity 0.3s;">
+                <span style="font-family:'Lexend',sans-serif;">👤 ${u}</span>
+                <button onclick="deleteUser('${u}')" style="font-family:'Lexend',sans-serif;font-size:0.72em;background:none;border:1px solid #c0392b;color:#c0392b;border-radius:5px;padding:2px 8px;cursor:pointer;">Remove</button>
+              </div>`).join('');
+          }
         } else {
-          listEl.textContent = data.users?.length === 0 ? 'No users yet.' : 'Failed to load users.';
+          listEl.textContent = 'Failed to load users.';
         }
       } catch { listEl.textContent = 'Error loading users.'; }
     }
 
-    window.deleteUser = async function(username, rowEl) {
+    window.deleteUser = async function(username) {
       if (!confirm('Remove user "' + username + '"?')) return;
-      // Instantly show pending state
+      // Instantly mark as pending in the DOM
+      const rowEl = document.getElementById('user-row-' + username);
       if (rowEl) {
-        rowEl.style.opacity = '0.5';
+        rowEl.style.opacity = '0.45';
         const btn = rowEl.querySelector('button');
-        if (btn) { btn.textContent = 'Deleting…'; btn.disabled = true; }
+        if (btn) { btn.textContent = 'Deleting…'; btn.disabled = true; btn.style.borderColor = '#999'; btn.style.color = '#999'; }
         const nameEl = rowEl.querySelector('span');
-        if (nameEl) nameEl.textContent = '👤 ' + username + ' (Deletion Pending…)';
+        if (nameEl) nameEl.textContent = '👤 ' + username + '  (Deletion Pending…)';
       }
       try {
         const res = await fetch(WORKER_URL + '/delete-user', {
@@ -750,7 +772,22 @@
           body: JSON.stringify({ adminPin: verifiedAdminPin, username })
         });
         const data = await res.json();
-        if (data.success) loadUsers();
+        if (data.success) {
+          // Fade out and remove the row directly — no full reload
+          if (rowEl) {
+            rowEl.style.opacity = '0';
+            rowEl.style.maxHeight = rowEl.offsetHeight + 'px';
+            rowEl.style.transition = 'opacity 0.3s, max-height 0.4s, padding 0.4s';
+            setTimeout(() => {
+              rowEl.style.maxHeight = '0';
+              rowEl.style.padding = '0';
+              rowEl.style.overflow = 'hidden';
+            }, 300);
+            setTimeout(() => rowEl.remove(), 720);
+          }
+        } else {
+          if (rowEl) rowEl.style.opacity = '1';
+        }
       } catch {
         if (rowEl) rowEl.style.opacity = '1';
       }
@@ -776,7 +813,17 @@
           msgEl.textContent = 'User "' + username + '" created!';
           document.getElementById('newUsername').value = '';
           document.getElementById('newUserPin').value = '';
-          loadUsers();
+          // Add user to list immediately without full reload
+          const listEl = document.getElementById('userList');
+          if (listEl.textContent === 'No users yet.' || listEl.textContent === 'Loading...') {
+            listEl.innerHTML = '';
+          }
+          const newRow = document.createElement('div');
+          newRow.id = 'user-row-' + username;
+          newRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);transition:opacity 0.3s;opacity:0;';
+          newRow.innerHTML = `<span style="font-family:'Lexend',sans-serif;">👤 ${username}</span><button onclick="deleteUser('${username}')" style="font-family:'Lexend',sans-serif;font-size:0.72em;background:none;border:1px solid #c0392b;color:#c0392b;border-radius:5px;padding:2px 8px;cursor:pointer;">Remove</button>`;
+          listEl.appendChild(newRow);
+          requestAnimationFrame(() => { newRow.style.opacity = '1'; });
           setTimeout(() => { msgEl.textContent = ''; }, 3000);
         } else {
           msgEl.style.color = '#c0392b';
