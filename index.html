@@ -90,6 +90,7 @@
     .card:nth-child(4) { animation-delay: 0.15s; }
     .card:nth-child(5) { animation-delay: 0.2s; }
     @keyframes cardIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
 
     .card-title {
       font-size: 0.68em; text-transform: uppercase; letter-spacing: 0.1em;
@@ -320,7 +321,6 @@
     #aiStatus.error   { background: var(--yellow-bg); color: #7d6608; border: 1px solid var(--yellow-border); }
 
     @media (max-width: 500px) {
-    @media (max-width: 500px) {
       body { padding: 16px 12px; }
       .field-row { flex-direction: column; }
       .field { min-width: 100%; }
@@ -331,6 +331,22 @@
   </style>
 </head>
 <body>
+
+  <!-- PIN Gate -->
+  <div id="pinGate" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:36px 40px;max-width:360px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.15);text-align:center;border-top:4px solid var(--red);">
+      <div style="font-size:2.4em;margin-bottom:12px;">🔐</div>
+      <h2 style="font-family:'Merriweather',serif;font-size:1.2em;margin-bottom:8px;color:var(--text);">Admin Access</h2>
+      <p style="font-size:0.85em;color:var(--muted);margin-bottom:20px;">Enter your PIN to access the item editor.</p>
+      <input id="pinInput" type="password" maxlength="4" placeholder="• • • •"
+        style="width:100%;padding:11px 14px;font-family:'Lexend',sans-serif;font-size:1.2em;letter-spacing:0.4em;text-align:center;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);margin-bottom:12px;transition:border-color 0.2s;outline:none;" />
+      <div id="pinError" style="font-size:0.78em;color:#c0392b;min-height:18px;margin-bottom:10px;"></div>
+      <button id="pinSubmit"
+        style="width:100%;padding:11px;font-family:'Lexend',sans-serif;font-size:0.9em;background:var(--red);color:#fff;border:none;border-radius:8px;cursor:pointer;">
+        Unlock
+      </button>
+    </div>
+  </div>
 
   <!-- Modal -->
   <div class="modal-backdrop" id="modalBackdrop">
@@ -349,7 +365,7 @@
       <div class="page-header-icon">🎁</div>
       <div>
         <h1>List Item Editor</h1>
-        <p>Build a new item — paste the output into the items array in index.html</p>
+
       </div>
     </div>
     <div class="dark-toggle" id="darkToggleWrap">
@@ -482,6 +498,34 @@
   </div>
 
   <script>
+    // ── PIN Gate ───────────────────────────────────────────────────────────
+    const ADMIN_PIN = "3323";
+    const pinGate    = document.getElementById('pinGate');
+    const pinInput   = document.getElementById('pinInput');
+    const pinSubmit  = document.getElementById('pinSubmit');
+    const pinError   = document.getElementById('pinError');
+
+    // Check if already unlocked in this session
+    if (sessionStorage.getItem('editorUnlocked') === 'true') {
+      pinGate.style.display = 'none';
+    }
+
+    function tryPin() {
+      if (pinInput.value === ADMIN_PIN) {
+        sessionStorage.setItem('editorUnlocked', 'true');
+        pinGate.style.animation = 'fadeOut 0.25s ease forwards';
+        setTimeout(() => { pinGate.style.display = 'none'; }, 250);
+      } else {
+        pinError.textContent = 'Incorrect PIN — try again.';
+        pinInput.value = '';
+        pinInput.style.borderColor = '#c0392b';
+        setTimeout(() => { pinInput.style.borderColor = ''; pinError.textContent = ''; }, 1500);
+      }
+    }
+
+    pinSubmit.addEventListener('click', tryPin);
+    pinInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryPin(); });
+
     // ── Dark mode ──────────────────────────────────────────────────────────
     const darkTrack = document.getElementById('darkTrack');
     const darkLabel = document.getElementById('darkLabel');
@@ -670,8 +714,6 @@
     }
 
     // ── Claude API auto-fill ──────────────────────────────────────────────
-    const CLAUDE_API_KEY = "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";
-
     document.getElementById('autoFillBtn').addEventListener('click', async () => {
       const link = document.getElementById('itemLink').value.trim();
       if (!link) {
@@ -708,13 +750,10 @@ None of the above (Other)
 JUST ANSWER THE QUESTIONS IN A CLEAN ORGANIZED FORMAT. DO NOT ADD ANY OTHER FLUFF`;
 
       try {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
+        const res = await fetch('https://claude-proxy.tristanarbet.workers.dev', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': CLAUDE_API_KEY,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true'
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             model: 'claude-haiku-4-5-20251001',
@@ -936,114 +975,6 @@ JUST ANSWER THE QUESTIONS IN A CLEAN ORGANIZED FORMAT. DO NOT ADD ANY OTHER FLUF
       } else {
         document.getElementById('itemLink').placeholder = 'https://www.amazon.com/dp/...';
       }
-    });
-
-    // ── AI Item Lookup ────────────────────────────────────────────────────
-    function setAiStatus(type, text) {
-      const el = document.getElementById('aiStatus');
-      el.className = 'asin-status ' + type;
-      el.textContent = text;
-      requestAnimationFrame(() => el.classList.add('visible'));
-    }
-    function clearAiStatus() {
-      const el = document.getElementById('aiStatus');
-      el.classList.remove('visible');
-      setTimeout(() => { el.className = 'asin-status'; el.textContent = ''; }, 300);
-    }
-
-    document.getElementById('aiLookupBtn').addEventListener('click', async () => {
-      const link = document.getElementById('itemLink').value.trim();
-      if (!link) {
-        await showModal({ icon: '⚠️', title: 'No Link', body: 'Please paste an item link first.', type: 'warning', buttons: [{ label: 'OK', style: 'btn-primary' }] });
-        return;
-      }
-
-      const btn = document.getElementById('aiLookupBtn');
-      btn.textContent = '⏳ Asking Claude...';
-      btn.disabled = true;
-      setAiStatus('loading', '⏳ Claude is looking up this product...');
-
-      const prompt = `Give me information about this product.
-LINK: ${link}
-
-Please answer each of these exactly, one per line, in this format:
-AMAZON: yes or no
-NAME: short name (brand + basic item, e.g. "Anker Braided Cables 2 Pack" not the full Amazon title)
-CATEGORY: one of: Tech, Clothes, Food, Other
-PRIME: yes or no (only if Amazon, otherwise N/A)
-PRICE: the price with $ symbol (only if not Amazon, otherwise N/A)
-IMAGE: the product image URL if you know it, otherwise N/A
-ASIN: the Amazon ASIN if you know it (10 character code), otherwise N/A
-
-Be concise. Only output these 7 lines, nothing else.`;
-
-      try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 300,
-            messages: [{ role: 'user', content: prompt }]
-          })
-        });
-
-        const data = await response.json();
-        const text = data?.content?.[0]?.text || '';
-
-        // Parse response
-        const get = (key) => {
-          const match = text.match(new RegExp(key + ':\s*(.+)', 'i'));
-          return match ? match[1].trim() : null;
-        };
-
-        const isAmazon  = (get('AMAZON') || '').toLowerCase() === 'yes';
-        const name      = get('NAME');
-        const category  = get('CATEGORY');
-        const prime     = (get('PRIME') || '').toLowerCase() === 'yes';
-        const price     = get('PRICE');
-        const image     = get('IMAGE');
-        const asin      = get('ASIN');
-
-        // Auto-fill fields
-        if (name) document.getElementById('itemName').value = name;
-
-        if (category) {
-          const catMap = { 'tech': 'Tech', 'clothes': 'Clothes', 'clothing': 'Clothes', 'food': 'Food', 'other': 'Other' };
-          const mapped = catMap[category.toLowerCase()];
-          if (mapped) document.getElementById('itemCategory').value = mapped;
-        }
-
-        if (prime) { isPrime = true; primeToggle.classList.add('on'); }
-        else { isPrime = false; primeToggle.classList.remove('on'); }
-
-        if (!isAmazon && price && price !== 'N/A') {
-          document.getElementById('itemPrice').value = price;
-          // Also flip Not on Amazon toggle
-          if (!isNotAmazon) notAmazonToggle.click();
-        }
-
-        if (image && image !== 'N/A') {
-          document.getElementById('itemImg').value = image;
-          // Trigger image preview
-          document.getElementById('itemImg').dispatchEvent(new Event('input'));
-        }
-
-        if (asin && asin !== 'N/A') {
-          document.getElementById('asinInput').value = asin;
-          setAsinStatus('found', '✓ ASIN from Claude: ' + asin);
-        }
-
-        const filled = [name && 'name', category && 'category', (image && image !== 'N/A') && 'image', (asin && asin !== 'N/A') && 'ASIN'].filter(Boolean);
-        setAiStatus('success', '✓ Filled in: ' + filled.join(', ') + ' — review and adjust as needed');
-
-      } catch (e) {
-        console.error(e);
-        setAiStatus('error', '⚠️ Could not reach Claude API — fill in manually');
-      }
-
-      btn.textContent = '✨ AI Fill';
-      btn.disabled = false;
     });
 
     // ── Reset ──────────────────────────────────────────────────────────────
