@@ -325,7 +325,7 @@
       background: var(--bg);
       display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 10px;
-      transition: opacity 0.4s ease;
+      transition: opacity 0.65s ease;
     }
     #editorLoader.fade-out { opacity: 0; pointer-events: none; }
     #editorLoader .loader-icon { font-size: 2em; animation: loadBounce 0.7s ease infinite alternate; }
@@ -636,8 +636,10 @@
     // ── Token auto-login on page load ──────────────────────────────────────
     const editorLoader = document.getElementById('editorLoader');
     function dismissLoader() {
-      editorLoader.classList.add('fade-out');
-      setTimeout(() => editorLoader.remove(), 450);
+      setTimeout(() => {
+        editorLoader.classList.add('fade-out');
+        setTimeout(() => { if (editorLoader.parentNode) editorLoader.remove(); }, 650);
+      }, 100);
     }
 
     (async function checkToken() {
@@ -833,6 +835,13 @@
         const data = await res.json();
         if (data.success) {
           addPendingDeletion(username);
+          // Show deletion notice
+          const msgEl = document.getElementById('createUserMsg');
+          if (msgEl) {
+            msgEl.style.color = '#e67e22';
+            msgEl.innerHTML = '<strong>User removed.</strong> Changes may take a moment to propagate — the account may still function briefly on other active sessions.';
+            setTimeout(() => { msgEl.textContent = ''; }, 8000);
+          }
           // Fade out visually immediately
           if (rowEl) {
             rowEl.style.opacity = '0';
