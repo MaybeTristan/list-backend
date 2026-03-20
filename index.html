@@ -373,7 +373,7 @@
 
       <div style="text-align:left;margin-bottom:14px;">
         <label style="font-size:0.76em;color:var(--muted);font-weight:500;display:block;margin-bottom:6px;">Username</label>
-        <input id="loginUsername" type="text" autocomplete="username" placeholder="e.g. tristan"
+        <input id="loginUsername" type="text" autocomplete="username" placeholder="Username"
           style="width:100%;padding:10px 12px;font-family:'Lexend',sans-serif;font-size:0.9em;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);outline:none;transition:border-color 0.2s;box-sizing:border-box;" />
       </div>
       <div style="text-align:left;margin-bottom:14px;">
@@ -402,7 +402,7 @@
   </div>
 
   <!-- Admin Panel Gate -->
-  <div id="adminGate" style="position:fixed;inset:0;background:var(--bg);z-index:9998;display:none;align-items:center;justify-content:center;padding:20px;min-height:100vh;min-height:100dvh;">
+  <div id="adminGate" style="position:fixed;inset:0;background:var(--bg);z-index:10000;display:none;align-items:center;justify-content:center;padding:20px;min-height:100vh;min-height:100dvh;">
     <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px 32px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.15);border-top:4px solid #8f2121;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
         <h2 style="font-family:'Merriweather',serif;font-size:1.1em;color:var(--text);margin:0;">🛡️ User Management</h2>
@@ -618,9 +618,14 @@
       }
     } catch {}
 
-    // Check session
-    if (sessionStorage.getItem('editorLoggedIn') === 'true') {
+    // Check session — only skip login if remember was explicitly set
+    const hasRemembered = !!localStorage.getItem('editorUser');
+    if (hasRemembered && sessionStorage.getItem('editorLoggedIn') === 'true') {
       loginGate.style.display = 'none';
+    } else if (!hasRemembered) {
+      // Clear stale session if remember me was not checked
+      sessionStorage.removeItem('editorLoggedIn');
+      sessionStorage.removeItem('editorUsername');
     }
 
     function dismissLogin() {
@@ -719,9 +724,9 @@
         const data = await res.json();
         if (data.success && data.users.length > 0) {
           listEl.innerHTML = data.users.map(u => `
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);">
+            <div id="user-row-${u}" style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);transition:opacity 0.2s;">
               <span style="font-family:'Lexend',sans-serif;">👤 ${u}</span>
-              <button onclick="deleteUser('${u}')" style="font-family:'Lexend',sans-serif;font-size:0.72em;background:none;border:1px solid #c0392b;color:#c0392b;border-radius:5px;padding:2px 8px;cursor:pointer;">Remove</button>
+              <button onclick="deleteUser('${u}', document.getElementById('user-row-${u}'))" style="font-family:'Lexend',sans-serif;font-size:0.72em;background:none;border:1px solid #c0392b;color:#c0392b;border-radius:5px;padding:2px 8px;cursor:pointer;">Remove</button>
             </div>`).join('');
         } else {
           listEl.textContent = data.users?.length === 0 ? 'No users yet.' : 'Failed to load users.';
@@ -729,8 +734,16 @@
       } catch { listEl.textContent = 'Error loading users.'; }
     }
 
-    window.deleteUser = async function(username) {
+    window.deleteUser = async function(username, rowEl) {
       if (!confirm('Remove user "' + username + '"?')) return;
+      // Instantly show pending state
+      if (rowEl) {
+        rowEl.style.opacity = '0.5';
+        const btn = rowEl.querySelector('button');
+        if (btn) { btn.textContent = 'Deleting…'; btn.disabled = true; }
+        const nameEl = rowEl.querySelector('span');
+        if (nameEl) nameEl.textContent = '👤 ' + username + ' (Deletion Pending…)';
+      }
       try {
         const res = await fetch(WORKER_URL + '/delete-user', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -738,7 +751,9 @@
         });
         const data = await res.json();
         if (data.success) loadUsers();
-      } catch {}
+      } catch {
+        if (rowEl) rowEl.style.opacity = '1';
+      }
     };
 
     document.getElementById('createUserBtn').addEventListener('click', async () => {
@@ -976,27 +991,16 @@
       btn.textContent = '⏳ Asking Claude...';
       status.textContent = '';
 
-      const prompt = `Give me information about this product.
+      const prompt = `You are a product data extractor. Given a product link, answer the following fields exactly. No extra text, no explanation, no punctuation outside the values.
 
 LINK: ${link}
 
-Please fill out these prompts:
-
-> Is this an Amazon product?
-
-> What is this items name? [Do Not Give Full Name, Give Something Like BRAND, BASIC ITEM so if it was "Anker USB C to USB C Cable, 2-Pack 6 FT Type C 100W Charger Cord" you would put something like "Anker Braided Cables 2 Pack"]
-
-> What category is this product out of these:
-Tech
-Clothing
-Food
-None of the above (Other)
-
-> If it is on Amazon does it have Prime?
-
-> If it is not on Amazon what is its price?
-
-JUST ANSWER THE QUESTIONS IN A CLEAN ORGANIZED FORMAT. DO NOT ADD ANY OTHER FLUFF`;
+AMAZON: yes or no
+NAME: Brand + short product name + quantity if applicable. Quantity rules: "2-Pack" = "2 Pack", "6 bags with 5 pieces each" = "6 Pack", no quantity if it is a single item. Keep it very strictly around 5-7 words unless absolutely necessary. Example: "Anker Braided Cables 2 Pack" or "Swedish Fish Bag" or "Lotus Biscoff 9 Pack"
+CATEGORY: exactly one of: Tech, Clothes, Food, Other
+PRIME: yes or no (if not Amazon write N/A)
+PRICE: price with $ symbol (if not Amazon, otherwise write N/A)
+ASIN: 10-character Amazon code from the URL (e.g. B082F2PKQ5), write N/A if not Amazon or cannot determine`;
 
       try {
         const res = await fetch('https://claude-proxy.tristanarbet.workers.dev', {
@@ -1021,40 +1025,28 @@ JUST ANSWER THE QUESTIONS IN A CLEAN ORGANIZED FORMAT. DO NOT ADD ANY OTHER FLUF
         const text = data?.content?.[0]?.text || '';
         if (!text) throw new Error('Empty response — full data: ' + JSON.stringify(data));
 
-        // Parse the response
-        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        // Parse clean KEY: value format
+        const get = (key) => {
+          const match = text.match(new RegExp('^' + key + ':\\s*(.+)', 'im'));
+          return match ? match[1].trim() : '';
+        };
 
-        let isAmazon = false;
-        let itemName = '';
+        const isAmazon = get('AMAZON').toLowerCase() === 'yes';
+        const itemName = get('NAME');
+        const rawCat   = get('CATEGORY').toLowerCase();
+        const hasPrime = get('PRIME').toLowerCase() === 'yes';
+        const price    = get('PRICE') !== 'N/A' ? get('PRICE') : '';
+        const claudeAsin = get('ASIN') !== 'N/A' ? get('ASIN').trim().toUpperCase() : null;
+
+        // ASIN cross-check: use regex-extracted first, fall back to Claude's
+        const regexAsin = extractAsinFromText(link);
+        const finalAsin = regexAsin || claudeAsin;
+
         let category = '';
-        let hasPrime = false;
-        let price = '';
-
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i].toUpperCase();
-          const next = (lines[i + 1] || '').trim();
-
-          if (line.includes('IS THIS AN AMAZON') || line.includes('AMAZON PRODUCT')) {
-            isAmazon = next.toUpperCase().includes('YES');
-          }
-          if (line.includes("ITEM'S NAME") || line.includes('ITEMS NAME') || line.includes('ITEM NAME')) {
-            itemName = next;
-          }
-          if (line.includes('CATEGORY')) {
-            const cat = next.toUpperCase();
-            if (cat.includes('TECH')) category = 'Tech';
-            else if (cat.includes('CLOTH') || cat.includes('APPAREL')) category = 'Clothes';
-            else if (cat.includes('FOOD') || cat.includes('SNACK') || cat.includes('CANDY')) category = 'Food';
-            else category = 'Other';
-          }
-          if (line.includes('PRIME')) {
-            hasPrime = next.toUpperCase().includes('YES');
-          }
-          if (line.includes('PRICE') && !isAmazon) {
-            const priceMatch = next.match(/\$[\d.]+/);
-            if (priceMatch) price = priceMatch[0];
-          }
-        }
+        if (rawCat.includes('tech')) category = 'Tech';
+        else if (rawCat.includes('cloth')) category = 'Clothes';
+        else if (rawCat.includes('food')) category = 'Food';
+        else category = 'Other';
 
         // Auto-fill the form
         if (itemName) document.getElementById('itemName').value = itemName;
