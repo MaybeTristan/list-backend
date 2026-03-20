@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>List Item Editor</title>
   <link rel="icon" href="https://photos.tristanarbet.com/Adobe%20Express%20Photo%20project-8.png">
-  <link rel="icon" href="https://photos.tristanarbet.com/Adobe%20Express%20Photo%20project-8.png">
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&family=Merriweather:wght@700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -333,7 +332,7 @@
 <body>
 
   <!-- PIN Gate -->
-  <div id="pinGate" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">
+  <div id="pinGate" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;min-height:100vh;min-height:100dvh;">
     <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:36px 40px;max-width:360px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.15);text-align:center;border-top:4px solid var(--red);">
       <div style="font-size:2.4em;margin-bottom:12px;">🔐</div>
       <h2 style="font-family:'Merriweather',serif;font-size:1.2em;margin-bottom:8px;color:var(--text);">Admin Access</h2>
@@ -499,7 +498,6 @@
 
   <script>
     // ── PIN Gate ───────────────────────────────────────────────────────────
-    const ADMIN_PIN = "3323";
     const pinGate    = document.getElementById('pinGate');
     const pinInput   = document.getElementById('pinInput');
     const pinSubmit  = document.getElementById('pinSubmit');
@@ -510,21 +508,41 @@
       pinGate.style.display = 'none';
     }
 
-    function tryPin() {
-      if (pinInput.value === ADMIN_PIN) {
-        sessionStorage.setItem('editorUnlocked', 'true');
-        pinGate.style.animation = 'fadeOut 0.25s ease forwards';
-        setTimeout(() => { pinGate.style.display = 'none'; }, 250);
-      } else {
-        pinError.textContent = 'Incorrect PIN — try again.';
-        pinInput.value = '';
-        pinInput.style.borderColor = '#c0392b';
-        setTimeout(() => { pinInput.style.borderColor = ''; pinError.textContent = ''; }, 1500);
+    async function tryPin() {
+      const pin = pinInput.value;
+      if (!pin) return;
+      pinSubmit.disabled = true;
+      pinSubmit.textContent = 'Checking...';
+      try {
+        const res = await fetch(WORKER_URL + '/verify-pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin })
+        });
+        const data = await res.json();
+        if (data.valid === true) {
+          sessionStorage.setItem('editorUnlocked', 'true');
+          pinGate.style.animation = 'fadeOut 0.25s ease forwards';
+          setTimeout(() => { pinGate.style.display = 'none'; }, 250);
+        } else {
+          pinError.textContent = 'Incorrect PIN — try again.';
+          pinInput.value = '';
+          pinInput.style.borderColor = '#c0392b';
+          setTimeout(() => { pinInput.style.borderColor = ''; pinError.textContent = ''; }, 1500);
+        }
+      } catch {
+        pinError.textContent = 'Could not verify PIN — check connection.';
+        setTimeout(() => { pinError.textContent = ''; }, 2000);
+      } finally {
+        pinSubmit.disabled = false;
+        pinSubmit.textContent = 'Unlock';
       }
     }
 
     pinSubmit.addEventListener('click', tryPin);
     pinInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryPin(); });
+
+    const WORKER_URL = "https://claude-proxy.tristanarbet.workers.dev";
 
     // ── Dark mode ──────────────────────────────────────────────────────────
     const darkTrack = document.getElementById('darkTrack');
@@ -850,7 +868,7 @@ JUST ANSWER THE QUESTIONS IN A CLEAN ORGANIZED FORMAT. DO NOT ADD ANY OTHER FLUF
     async function getIndexTemplate() {
       if (INDEX_TEMPLATE) return INDEX_TEMPLATE;
       try {
-        const res = await fetch('https://media.tristanarbet.com/priv/index.html');
+        const res = await fetch('https://media.tristanarbet.com/priv/index%20(4).html');
         if (res.ok) { INDEX_TEMPLATE = await res.text(); return INDEX_TEMPLATE; }
       } catch {}
       return null;
