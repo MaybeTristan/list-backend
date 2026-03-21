@@ -403,6 +403,101 @@
     }
     .profile-logout-btn:hover { background: #c0392b; color: #fff; border-color: #c0392b; }
 
+    /* ── Multi-item queue ────────────────────────────────────────────────── */
+    .queued-item {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); margin: 0 auto 12px;
+      max-width: 720px; overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .queued-item-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; cursor: pointer; user-select: none;
+      gap: 10px;
+    }
+    .queued-item-header:hover { background: rgba(0,0,0,0.03); }
+    .queued-item-title { font-size: 0.88em; font-weight: 600; color: var(--text); flex: 1; }
+    .queued-item-meta { font-size: 0.72em; color: var(--faint); }
+    .queued-item-arrow { font-size: 0.75em; color: var(--faint); transition: transform 0.2s; }
+    .queued-item.open .queued-item-arrow { transform: rotate(180deg); }
+    .queued-item-body {
+      display: grid; grid-template-rows: 0fr;
+      transition: grid-template-rows 0.28s ease;
+    }
+    .queued-item.open .queued-item-body { grid-template-rows: 1fr; }
+    .queued-item-body-inner { overflow: hidden; }
+    .queued-item-content { padding: 0 16px 14px; border-top: 1px solid var(--border); }
+    .queued-item-code {
+      font-family: 'Courier New', monospace; font-size: 0.75em;
+      color: #a8e6cf; background: #111827; border-radius: 8px;
+      padding: 10px 12px; margin: 10px 0 8px;
+      white-space: pre-wrap; word-break: break-all;
+    }
+    .queued-item-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .queued-remove-btn {
+      font-family: 'Lexend', sans-serif; font-size: 0.78em;
+      padding: 5px 12px; border-radius: 6px; cursor: pointer;
+      background: none; border: 1px solid #c0392b; color: #c0392b;
+      transition: background 0.15s, color 0.15s;
+    }
+    .queued-remove-btn:hover { background: #c0392b; color: #fff; }
+    .queued-copy-btn {
+      font-family: 'Lexend', sans-serif; font-size: 0.78em;
+      padding: 5px 12px; border-radius: 6px; cursor: pointer;
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      transition: background 0.15s;
+    }
+    .queued-copy-btn:hover { background: var(--bg); }
+    .queue-section { max-width: 720px; margin: 0 auto 8px; }
+    .queue-label {
+      font-size: 0.68em; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--faint); margin-bottom: 10px; font-weight: 600;
+      padding: 0 4px;
+    }
+
+    /* ── Sticky generate bar ─────────────────────────────────────────────── */
+    .sticky-generate {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--card); border-top: 1px solid var(--border);
+      padding: 12px 20px; z-index: 200;
+      display: flex; gap: 10px; align-items: center;
+      box-shadow: 0 -4px 16px rgba(0,0,0,0.1);
+    }
+    .sticky-generate .btn { flex: 1; justify-content: center; padding: 12px; font-size: 0.92em; }
+    body { padding-bottom: 80px; }
+
+    /* ── Mobile touch improvements ───────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .btn { padding: 12px 18px; font-size: 0.9em; min-height: 44px; }
+      .file-action-btn { padding: 10px 14px; min-height: 44px; }
+      .field input, .field select { padding: 12px; font-size: 0.95em; min-height: 44px; }
+      .btn-ai { padding: 10px 14px; min-height: 44px; }
+    }
+
+    /* ── Login gate — floating card, scrollable behind ──────────────────── */
+    @media (max-width: 600px) {
+      #loginGate {
+        background: transparent;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        align-items: flex-start;
+        justify-content: flex-end;
+        pointer-events: none;
+        padding: 0;
+        overflow: visible;
+      }
+      #loginGate > div {
+        pointer-events: all;
+        border-radius: 20px 20px 0 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 24px 20px 40px !important;
+        box-shadow: 0 -8px 32px rgba(0,0,0,0.2) !important;
+        position: relative;
+        background: var(--card) !important;
+      }
+    }
+
     @media (max-width: 500px) {
       body { padding: 16px 12px; }
       .field-row { flex-direction: column; }
@@ -635,6 +730,13 @@
   </div>
 
   <!-- Step 4 -->
+  <!-- Queue section (populated by JS) -->
+  <div class="queue-section" id="queueSection" style="display:none;">
+    <div class="queue-label">📦 Item Queue</div>
+    <div id="queueList"></div>
+  </div>
+
+  <!-- Step 4 -->
   <div class="card">
     <div class="card-title">Step 4 — Generate</div>
     <div class="btn-row">
@@ -668,8 +770,63 @@
     </div>
   </div>
 
+  <!-- Sticky generate bar -->
+  <div class="sticky-generate">
+    <button class="btn btn-primary" id="stickyGenerateBtn">✨ Generate</button>
+    <button class="btn btn-secondary" id="stickyResetBtn">↺ Reset</button>
+  </div>
+
   <script>
     const WORKER_URL = "https://claude-proxy.tristanarbet.workers.dev";
+
+    // ── Authenticated fetch — sends token on every request ─────────────────
+    async function authedFetch(path, body = {}) {
+      const token = localStorage.getItem('editorToken') || '';
+      const res = await fetch(WORKER_URL + path, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Auth-Token': token
+        },
+        body: JSON.stringify(body)
+      });
+      if (res.status === 401) {
+        // Session expired — force re-login
+        sessionStorage.removeItem('editorLoggedIn');
+        sessionStorage.removeItem('editorUsername');
+        localStorage.removeItem('editorToken');
+        await showModal({
+          icon: '🔒', title: 'Session Expired',
+          body: 'Your session has expired or is invalid. Please sign in again.',
+          type: 'warning', buttons: [{ label: 'Sign In', style: 'btn-primary' }]
+        });
+        location.reload();
+        throw new Error('Unauthorized');
+      }
+      return res.json();
+    }
+
+    // ── Authed fetch — injects token, handles 401 ──────────────────────────
+    async function authedFetch(path, options = {}) {
+      const token = localStorage.getItem('editorToken') || '';
+      const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+      if (token) headers['X-Auth-Token'] = token;
+      const res = await fetch(WORKER_URL + path, { ...options, headers });
+      if (res.status === 401) {
+        // Session expired — clear and show login
+        sessionStorage.removeItem('editorLoggedIn');
+        sessionStorage.removeItem('editorUsername');
+        localStorage.removeItem('editorToken');
+        await showModal({
+          icon: '🔒', title: 'Session Expired',
+          body: 'Your session has expired or is invalid. Please sign in again.',
+          buttons: [{ label: 'Sign In', style: 'btn-primary' }]
+        });
+        location.reload();
+        return null;
+      }
+      return res;
+    }
 
     // ── Login system ───────────────────────────────────────────────────────
     const loginGate = document.getElementById('loginGate');
@@ -784,8 +941,8 @@
       const errEl = document.getElementById('adminPinError');
       if (!pin) return;
       try {
-        const res = await fetch(WORKER_URL + '/verify-pin', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+        const res = await authedFetch('/verify-pin', {
+          method: 'POST',
           body: JSON.stringify({ pin })
         });
         const data = await res.json();
@@ -813,8 +970,8 @@
         listEl.textContent = 'Loading...';
       }
       try {
-        const res = await fetch(WORKER_URL + '/list-users', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+        const res = await authedFetch('/list-users', {
+          method: 'POST',
           body: JSON.stringify({ adminPin: verifiedAdminPin })
         });
         const data = await res.json();
@@ -888,8 +1045,8 @@
         if (nameEl) nameEl.textContent = '👤 ' + username + '  (Deletion Pending…)';
       }
       try {
-        const res = await fetch(WORKER_URL + '/delete-user', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+        const res = await authedFetch('/delete-user', {
+          method: 'POST',
           body: JSON.stringify({ adminPin: verifiedAdminPin, username })
         });
         const data = await res.json();
@@ -917,15 +1074,15 @@
           // Silently verify deletion after 2.5s to account for KV propagation
           setTimeout(async () => {
             try {
-              const verifyRes = await fetch(WORKER_URL + '/list-users', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+              const verifyRes = await authedFetch('/list-users', {
+                method: 'POST',
                 body: JSON.stringify({ adminPin: verifiedAdminPin })
               });
               const verifyData = await verifyRes.json();
               if (verifyData.success && verifyData.users.includes(username)) {
                 // Still there — retry delete silently once more
-                await fetch(WORKER_URL + '/delete-user', {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                await authedFetch('/delete-user', {
+                  method: 'POST',
                   body: JSON.stringify({ adminPin: verifiedAdminPin, username })
                 });
                 // Reload list after second attempt
@@ -951,8 +1108,8 @@
         return;
       }
       try {
-        const res = await fetch(WORKER_URL + '/create-user', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+        const res = await authedFetch('/create-user', {
+          method: 'POST',
           body: JSON.stringify({ adminPin: verifiedAdminPin, username, pin })
         });
         const data = await res.json();
@@ -1243,11 +1400,8 @@ PRICE: price with $ symbol (if not Amazon, otherwise write N/A)
 ASIN: 10-character Amazon code from the URL (e.g. B082F2PKQ5), write N/A if not Amazon or cannot determine`;
 
       try {
-        const res = await fetch('https://claude-proxy.tristanarbet.workers.dev', {
+        const res = await authedFetch('/', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
           body: JSON.stringify({
             model: 'claude-haiku-4-5-20251001',
             max_tokens: 300,
@@ -1331,9 +1485,12 @@ ASIN: 10-character Amazon code from the URL (e.g. B082F2PKQ5), write N/A if not 
     async function getIndexTemplate() {
       if (INDEX_TEMPLATE) return INDEX_TEMPLATE;
       try {
-        const res = await fetch('https://media.tristanarbet.com/priv/index%20(4).html');
-        if (res.ok) { INDEX_TEMPLATE = await res.text(); return INDEX_TEMPLATE; }
-      } catch {}
+        const res = await authedFetch('/get-template', { method: 'POST', body: JSON.stringify({}) });
+        if (res && res.ok) {
+          const data = await res.json();
+          if (data.success) { INDEX_TEMPLATE = data.html; return INDEX_TEMPLATE; }
+        }
+      } catch(e) { console.warn('Template fetch failed', e); }
       return null;
     }
 
@@ -1412,10 +1569,42 @@ ASIN: 10-character Amazon code from the URL (e.g. B082F2PKQ5), write N/A if not 
           ${asin ? `<div class="preview-card-asin">ASIN: ${asin}</div>` : '<div class="preview-card-asin" style="color:#c0392b;">No ASIN — Live Price Unavailable</div>'}
         </div>`;
 
+      // Add to queue
+      const queueItem = { id: Date.now(), name, code: newLine, asin };
+      itemQueue.push(queueItem);
+      renderQueue();
+
       // Smooth reveal
       const out = document.getElementById('outputSection');
       out.classList.add('visible');
       setTimeout(() => out.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+
+      // Show "+ Add Another Item" button
+      const existingAddBtn = document.getElementById('addAnotherBtn');
+      if (!existingAddBtn) {
+        const addBtn = document.createElement('button');
+        addBtn.id = 'addAnotherBtn';
+        addBtn.className = 'btn btn-secondary';
+        addBtn.style.marginTop = '12px';
+        addBtn.textContent = '+ Add Another Item';
+        addBtn.addEventListener('click', () => {
+          // Clear form fields but keep queue
+          ['itemLink','itemName','itemNote','asinInput','itemPrice','itemImg'].forEach(id => {
+            document.getElementById(id).value = '';
+          });
+          document.getElementById('itemCategory').value = 'Food';
+          clearAsinStatus();
+          document.getElementById('imgPreview').innerHTML = '<div class="img-preview-placeholder">Enter an image URL above to preview</div>';
+          document.getElementById('imgPreview').classList.remove('has-image');
+          out.classList.remove('visible');
+          isPrime = true;
+          document.getElementById('primeToggle').classList.add('on');
+          if (isNotAmazon) notAmazonToggle.click();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          addBtn.remove();
+        });
+        out.parentNode.appendChild(addBtn);
+      }
     });
 
     // ── Copy full file ─────────────────────────────────────────────────────
@@ -1449,6 +1638,68 @@ ASIN: 10-character Amazon code from the URL (e.g. B082F2PKQ5), write N/A if not 
           buttons: [{ label: 'Got It!', style: 'btn-primary' }]
         });
       }
+    });
+
+    // ── Item Queue ─────────────────────────────────────────────────────────
+    let itemQueue = []; // { id, name, code, asin }
+
+    function renderQueue() {
+      const section = document.getElementById('queueSection');
+      const list    = document.getElementById('queueList');
+      if (itemQueue.length === 0) { section.style.display = 'none'; return; }
+      section.style.display = 'block';
+      list.innerHTML = '';
+      itemQueue.forEach((item, idx) => {
+        const el = document.createElement('div');
+        el.className = 'queued-item';
+        el.dataset.idx = idx;
+        el.innerHTML = `
+          <div class="queued-item-header" onclick="toggleQueueItem(${idx})">
+            <span class="queued-item-title">${sanitize(item.name)}</span>
+            <span class="queued-item-meta">${item.asin ? '🟢 Live Price' : 'Static Price'}</span>
+            <span class="queued-item-arrow">▾</span>
+          </div>
+          <div class="queued-item-body">
+            <div class="queued-item-body-inner">
+              <div class="queued-item-content">
+                <div class="queued-item-code">${sanitize(item.code)}</div>
+                <div class="queued-item-actions">
+                  <button class="queued-copy-btn" onclick="copyQueueItem(${idx})">📋 Copy Line</button>
+                  <button class="queued-remove-btn" onclick="removeQueueItem(${idx})">✕ Remove</button>
+                </div>
+              </div>
+            </div>
+          </div>`;
+        list.appendChild(el);
+      });
+    }
+
+    window.toggleQueueItem = function(idx) {
+      const items = document.querySelectorAll('.queued-item');
+      items[idx]?.classList.toggle('open');
+    };
+
+    window.removeQueueItem = function(idx) {
+      itemQueue.splice(idx, 1);
+      renderQueue();
+    };
+
+    window.copyQueueItem = function(idx) {
+      navigator.clipboard.writeText(itemQueue[idx].code).then(() => {
+        const btns = document.querySelectorAll('.queued-copy-btn');
+        if (btns[idx]) {
+          btns[idx].textContent = '✓ Copied!';
+          setTimeout(() => { btns[idx].textContent = '📋 Copy Line'; }, 2000);
+        }
+      });
+    };
+
+    // ── Sticky bar wiring ──────────────────────────────────────────────────
+    document.getElementById('stickyGenerateBtn').addEventListener('click', () => {
+      document.getElementById('generateBtn').click();
+    });
+    document.getElementById('stickyResetBtn').addEventListener('click', () => {
+      document.getElementById('resetBtn').click();
     });
 
     // ── Toggle full code view ──────────────────────────────────────────────
@@ -1571,6 +1822,8 @@ ASIN: 10-character Amazon code from the URL (e.g. B082F2PKQ5), write N/A if not 
       document.getElementById('imgPreview').classList.remove('has-image');
       document.getElementById('outputSection').classList.remove('visible');
       isPrime = true; primeToggle.classList.add('on');
+      itemQueue = []; renderQueue();
+      const ab = document.getElementById('addAnotherBtn'); if (ab) ab.remove();
     });
   </script>
 </body>
