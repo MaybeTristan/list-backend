@@ -782,32 +782,6 @@
     const WORKER_URL = "https://claude-proxy.tristanarbet.workers.dev";
 
     // ── Authenticated fetch — sends token on every request ─────────────────
-    async function authedFetch(path, body = {}) {
-      const token = localStorage.getItem('editorToken') || '';
-      const res = await fetch(WORKER_URL + path, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Auth-Token': token
-        },
-        body: JSON.stringify(body)
-      });
-      if (res.status === 401) {
-        // Session expired — force re-login
-        sessionStorage.removeItem('editorLoggedIn');
-        sessionStorage.removeItem('editorUsername');
-        localStorage.removeItem('editorToken');
-        await showModal({
-          icon: '🔒', title: 'Session Expired',
-          body: 'Your session has expired or is invalid. Please sign in again.',
-          type: 'warning', buttons: [{ label: 'Sign In', style: 'btn-primary' }]
-        });
-        location.reload();
-        throw new Error('Unauthorized');
-      }
-      return res.json();
-    }
-
     // ── Authed fetch — injects token, handles 401 ──────────────────────────
     async function authedFetch(path, options = {}) {
       const token = localStorage.getItem('editorToken') || '';
@@ -1500,8 +1474,11 @@ ASIN: 10-character Amazon code from the URL (e.g. B082F2PKQ5), write N/A if not 
     async function getIndexTemplate() {
       if (INDEX_TEMPLATE) return INDEX_TEMPLATE;
       try {
-        const res = await authedFetch('/get-template', { method: 'POST', body: JSON.stringify({}) });
-        if (res && res.ok) {
+        const res = await authedFetch('/get-template', {
+          method: 'POST',
+          body: JSON.stringify({})
+        });
+        if (res) {
           const data = await res.json();
           if (data.success) { INDEX_TEMPLATE = data.html; return INDEX_TEMPLATE; }
         }
