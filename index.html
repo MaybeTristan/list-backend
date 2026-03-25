@@ -962,18 +962,26 @@
       if (e.key === 'Enter') document.getElementById('adminVerifyBtn').click();
     });
 
+    // Admin fetch — uses token if available, plain fetch if pre-login
+    async function adminFetch(path, body) {
+      const token = localStorage.getItem('editorToken') || '';
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['X-Auth-Token'] = token;
+      const res = await fetch(WORKER_URL + path, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+      });
+      return res.json();
+    }
+
     async function loadUsers() {
       const listEl = document.getElementById('userList');
-      // Don't flash "Loading..." if list already has content — update silently
-      if (!listEl.innerHTML || listEl.textContent === 'Loading...' || listEl.textContent === 'No users yet.' || listEl.textContent === 'Error loading users.') {
+      if (!listEl.innerHTML || ['Loading...','No users yet.','Error loading users.'].includes(listEl.textContent)) {
         listEl.textContent = 'Loading...';
       }
       try {
-        const res = await authedFetch('/list-users', {
-          method: 'POST',
-          body: JSON.stringify({ adminPin: verifiedAdminPin })
-        });
-        const data = await res.json();
+        const data = await adminFetch('/list-users', { adminPin: verifiedAdminPin });
         if (data.success) {
           const pending = getPendingDeletions();
           const activeUsers  = data.users.filter(u => !pending[u]);
@@ -1044,12 +1052,8 @@
         if (nameEl) nameEl.textContent = '👤 ' + username + '  (Deletion Pending…)';
       }
       try {
-        const res = await authedFetch('/delete-user', {
-          method: 'POST',
-          body: JSON.stringify({ adminPin: verifiedAdminPin, username })
-        });
-        const data = await res.json();
-        if (data.success) {
+        const data = await adminFetch('/delete-user', { adminPin: verifiedAdminPin, username });
+        if (data && data.success) {
           addPendingDeletion(username);
           // Show deletion notice
           const msgEl = document.getElementById('createUserMsg');
@@ -1073,17 +1077,10 @@
           // Silently verify deletion after 2.5s to account for KV propagation
           setTimeout(async () => {
             try {
-              const verifyRes = await authedFetch('/list-users', {
-                method: 'POST',
-                body: JSON.stringify({ adminPin: verifiedAdminPin })
-              });
-              const verifyData = await verifyRes.json();
+              const verifyData = await adminFetch('/list-users', { adminPin: verifiedAdminPin });
               if (verifyData.success && verifyData.users.includes(username)) {
                 // Still there — retry delete silently once more
-                await authedFetch('/delete-user', {
-                  method: 'POST',
-                  body: JSON.stringify({ adminPin: verifiedAdminPin, username })
-                });
+                await adminFetch('/delete-user', { adminPin: verifiedAdminPin, username });
                 // Reload list after second attempt
                 setTimeout(() => loadUsers(), 1500);
               }
@@ -1107,11 +1104,7 @@
         return;
       }
       try {
-        const res = await authedFetch('/create-user', {
-          method: 'POST',
-          body: JSON.stringify({ adminPin: verifiedAdminPin, username, pin })
-        });
-        const data = await res.json();
+        const data = await adminFetch('/create-user', { adminPin: verifiedAdminPin, username, pin });
         if (data.success) {
           msgEl.style.color = '#27ae60';
           msgEl.innerHTML = 'User <strong>' + username + '</strong> created! <span style="font-weight:normal;opacity:0.8;">— Changes may take a moment to propagate across all sessions.</span>';
