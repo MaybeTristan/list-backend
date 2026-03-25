@@ -838,14 +838,10 @@
     // Lock/unlock body scroll — prevents scrolling behind login gate
     function lockScroll() {
       document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
       document.body.style.touchAction = 'none';
     }
     function unlockScroll() {
       document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
       document.body.style.touchAction = '';
     }
 
@@ -868,9 +864,6 @@
         setTimeout(() => { if (editorLoader.parentNode) editorLoader.remove(); }, 650);
       }, 100);
     }
-
-    // Lock scroll while loader is showing
-    document.body.classList.add('scroll-locked');
 
     (async function checkToken() {
       const token = localStorage.getItem('editorToken');
@@ -1802,8 +1795,10 @@ ASIN: 10-character Amazon code from the URL (e.g. B082F2PKQ5), write N/A if not 
       });
     }
 
-    // Init profile if already in session
+    // Init profile if already in session — also unlock scroll
     if (sessionStorage.getItem('editorLoggedIn') === 'true') {
+      unlockScroll();
+      loginGate.style.display = 'none';
       document.addEventListener('DOMContentLoaded', initProfile);
     }
 
