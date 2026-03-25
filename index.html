@@ -928,10 +928,14 @@
     document.getElementById('adminVerifyBtn').addEventListener('click', async () => {
       const pin = document.getElementById('adminPinInput').value.trim();
       const errEl = document.getElementById('adminPinError');
+      const btn   = document.getElementById('adminVerifyBtn');
       if (!pin) return;
+      btn.disabled = true; btn.textContent = 'Verifying...';
       try {
-        const res = await authedFetch('/verify-pin', {
+        // Use plain fetch — verify-pin must work pre-login for admin panel access
+        const res = await fetch(WORKER_URL + '/verify-pin', {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pin })
         });
         const data = await res.json();
@@ -942,10 +946,16 @@
           document.getElementById('adminContent').style.display = 'block';
           loadUsersAndLogs();
         } else {
-          errEl.textContent = 'Incorrect admin PIN.';
-          setTimeout(() => { errEl.textContent = ''; }, 1500);
+          errEl.textContent = 'Incorrect PIN — try again.';
+          document.getElementById('adminPinInput').value = '';
+          setTimeout(() => { errEl.textContent = ''; }, 1800);
         }
-      } catch { errEl.textContent = 'Connection error.'; }
+      } catch {
+        errEl.textContent = 'Connection error — check your connection.';
+        setTimeout(() => { errEl.textContent = ''; }, 2000);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Verify';
+      }
     });
 
     document.getElementById('adminPinInput').addEventListener('keydown', e => {
