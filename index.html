@@ -810,13 +810,17 @@
     const adminGate = document.getElementById('adminGate');
 
     // Lock/unlock body scroll — prevents scrolling behind login gate
+    // Store scroll position so we can restore it on unlock
+    let _scrollY = 0;
     function lockScroll() {
-      document.body.style.overflow = 'hidden';
-      document.body.style.touchAction = 'none';
+      _scrollY = window.scrollY;
+      document.body.classList.add('scroll-locked');
+      document.body.style.top = -_scrollY + 'px';
     }
     function unlockScroll() {
-      document.body.style.overflow = '';
-      document.body.style.touchAction = '';
+      document.body.classList.remove('scroll-locked');
+      document.body.style.top = '';
+      window.scrollTo(0, _scrollY);
     }
 
     // Lock immediately on load
